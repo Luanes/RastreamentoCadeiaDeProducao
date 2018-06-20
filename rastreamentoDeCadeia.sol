@@ -18,7 +18,7 @@ contract Empresa{
     function getNome() public view returns(string){
         return nome;
     }
-     
+    
 }
  
 // Esta implementação ainda não está ideal, o objetivo de criar o "Estoque" como algo abstrato é para reduzir redundância nas contratos que tem como natureza 
@@ -105,6 +105,9 @@ contract Pacote {
 // mais precisos para referenciar qual produto que chegou em cada momento. Mas, nesse primeiro estagio do projeto, vamos só armazenar o tempo de entrada
 // e de saída do ultimo produto.
 contract Armazem is Empresa, Estoque{
+    
+    uint tempoChegada;
+    uint tempoSaida;
  
     //Seu construtor se restringe a definir os seus atributos herdados de "Empresa"
     constructor(string _nome) public {
@@ -114,9 +117,24 @@ contract Armazem is Empresa, Estoque{
    
     //A maioria das implementações de recebe será dessa forma, com exceção do "Manufaturador".
     function recebe(Produto _produtoRecebido) public{
+        tempoChegada = now;
          estoque.push(_produtoRecebido);
          // Quando o produto é recebido e adicionado ao estoque, é o momento de atualizar o seu proprietario
          _produtoRecebido.setProprietario(this);
+     }
+     
+     //Unica diferença do método do Estoque é o de atualizar o tempo de saída.
+     function encaminha(Transportadora transportadorResponsavel) public{
+         tempoSaida = now;
+          // O "Pacote" será explicado posteriormente. Ele é só um contrato onde possuí um produto e um destino, assim o transportador
+          // pode transportar para outro transportador sem problemas. Para criar o pacote, utiliza-se o produto no topo do array de produtos
+          // e o destino do produto;
+          Pacote pacoteParaEntrega= new Pacote(destinoProduto, estoque[estoque.length-1]);
+          // Tratamento do array de produtos;
+          delete estoque[estoque.length-1];
+          estoque.length--;
+          // Encaminha o pacote para o transportador realizar a entrega;
+          transportadorResponsavel.entrega(pacoteParaEntrega);
      }
    
 }
@@ -249,12 +267,16 @@ contract Produto {
     
     
     // Essa funcao nunca foi realmente validada por sempre acusar "falta de combustível". Não sei se ela realmente funciona ou não.
-    function getNome() public constant returns(string[]){
+    function getNomeCadeia() public constant returns(string[]){
         string[] nomesDaCadeia;
         for( uint i = 0; i<cadeia.length-1;i++){
             nomesDaCadeia[0] = cadeia[0].getNome();
         }
         return nomesDaCadeia;
+    }
+    
+    function getNome() public constant returns(string){
+        return nome;
     }
     
    // Adiciona no final do array da cadeia os valores extras de membros da cadeia. Isso deve ser chamado toda vez que o produto for utilizado para criar
