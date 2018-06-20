@@ -1,4 +1,5 @@
 pragma solidity ^0.4.6;
+pragma experimental ABIEncoderV2;
  
 //Para este trabalho, os atores "Manufaturador", "Transportador", "Armazem" e "Produtor" são considerados entidades importantes para refererência ao rastrear
 // a cadeia. Por este motivo, foi criado este contrato genérico no qual será herdado por todas esses contratos, que serão empresas;
@@ -7,7 +8,17 @@ contract Empresa{
     string nome;
     // O Endereco se refere a "Account" neste caso;
     address endereco;
-   
+    
+    // Esta função está mal implementada. Contudo, quando deixada ela de forma abstrata ( sem as chaves), o programa não compilava mesmo depois de definir
+    // explicitamente a função dentro das outras que herdam esse contrato. Não foi possível solucionar o problema durante o tempo do trabalho.
+    function recebe(Produto _produtoRecebido) public{
+     }
+    
+    //Retorna o nome da empresa
+    function getNome() public view returns(string){
+        return nome;
+    }
+     
 }
  
 // Esta implementação ainda não está ideal, o objetivo de criar o "Estoque" como algo abstrato é para reduzir redundância nas contratos que tem como natureza 
@@ -19,10 +30,10 @@ contract Estoque{
     // Esta variável, estoque, será responsavel por identificar os produtos que serão encaminhados para uma unidade posterior;
     Produto[] estoque;
     // Esta variável sera o identificador da "Account" do destino do produto;
-    address destinoProduto;
+    Empresa destinoProduto;
    
     // Essa função tem como objetivo atualizar/definir o destino atual do conteúdo em estoque.
-    function setDestino(address _enderecoArmazem) public {
+    function setDestino(Empresa _enderecoArmazem) public {
         destinoProduto = _enderecoArmazem;
     }
    
@@ -37,11 +48,6 @@ contract Estoque{
           estoque.length--;
           // Encaminha o pacote para o transportador realizar a entrega;
           transportadorResponsavel.entrega(pacoteParaEntrega);
-     }
-     
-     // Esta função está mal implementada. Contudo, quando deixada ela de forma abstrata ( sem as chaves), o programa não compilava mesmo depois de definir
-     // explicitamente a função dentro das outras que herdam esse contrato. Não foi possível solucionar o problema durante o tempo do trabalho.
-     function recebe(Produto _produtoRecebido) public{
      }
      
 }
@@ -59,7 +65,7 @@ contract Produtor is Empresa, Estoque{
      // Este método simplesmente produz o "Produto" matéria prima, que será o produto mais básico de toda a cadeia.
      function produzMateriaPrima() public {
           // Cria o produto novo;
-          Produto novoProduto = new Produto("Ferro", "materia prima", endereco);
+          Produto novoProduto = new Produto("Ferro", "materia prima", this);
           // Adiciona ao estoque;
           estoque.push(novoProduto);
      }
@@ -70,19 +76,19 @@ contract Produtor is Empresa, Estoque{
 // um "Pacote". O Pacote contém a informação do destino do produto e, também, os produtos que ele contém.
 contract Pacote {
    
-    address enderecoDestino;
+    Empresa enderecoDestino;
     Produto produtoTransportado;
    
     // Seu constutor se restringe a definir o endereço destino e o produto que ele está transportando. Atualmente ele só pode transportar um produto, mas aqui
     // já fica uma sugestão, para trabalhos posteriores, de utilizar alguma outra forma de armazenamento para transporte, seja ele array, uma lista, etc.
-    constructor(address _enderecoDestino, Produto _produtoTransportado) public{
+    constructor(Empresa _enderecoDestino, Produto _produtoTransportado) public{
        
         enderecoDestino = _enderecoDestino;
         produtoTransportado = _produtoTransportado;
     }
    
     // Função para obter o endereço destino
-    function getEnderecoDestino()public view returns (address){
+    function getEnderecoDestino()public view returns (Empresa){
         return enderecoDestino;
     }
    
@@ -110,7 +116,7 @@ contract Armazem is Empresa, Estoque{
     function recebe(Produto _produtoRecebido) public{
          estoque.push(_produtoRecebido);
          // Quando o produto é recebido e adicionado ao estoque, é o momento de atualizar o seu proprietario
-         _produtoRecebido.setProprietario(endereco);
+         _produtoRecebido.setProprietario(this);
      }
    
 }
@@ -140,7 +146,7 @@ contract Manufaturador is Empresa, Estoque{
             estoqueDeDobradica.push(_produtoRecebido);
         }
         // Quando o produto é recebido e adicionado ao estoque, é o momento de atualizar o seu proprietario
-        _produtoRecebido.setProprietario(endereco);
+        _produtoRecebido.setProprietario(this);
      }
    
     // Não foi encontrado métodos nativos para comparação de strings, sendo assim, foi criado o seguinte método para isso.
@@ -152,11 +158,11 @@ contract Manufaturador is Empresa, Estoque{
    // da cadeia de forma a manter a integridade dela.
    function produzDobradica() public {
           // Aqui é resgatado a cadeiaAtual do ferro para, depois ser adicionado à cadeia do produto novo, a dobradica;
-          address[] memory cadeiaAtual = estoqueDeFerro[estoqueDeFerro.length-1].getCadeia();
+          Empresa[] memory cadeiaAtual = estoqueDeFerro[estoqueDeFerro.length-1].getCadeia();
           // Tratamento do array do estoque de consumo para produção
           delete estoqueDeFerro[estoqueDeFerro.length-1];
           estoqueDeFerro.length--;
-          Produto novoProduto = new Produto("Dobradica", "insumo", endereco);
+          Produto novoProduto = new Produto("Dobradica", "insumo", this);
           // Agora, depois da confirmação da criação do novo produto, é onde adicionamos o valor anterior da cadeia para o produto novo;
           // Temos um problema especial aqui, visto que ao produzir um novo produto adicionamos o proprietario atual como o próprio produtor
           // E, ao utilizar um produto de estoque de consumo, estaremos duplicando o proprietario atual. 
@@ -164,24 +170,19 @@ contract Manufaturador is Empresa, Estoque{
           estoque.push(novoProduto);
      }
      
-    function teste() public {
-        estoque[estoque.length-1].getCadeia();
-        estoque[estoque.length-1].getTipoProduto();
-    }
-   
     // Para produzir porta retratil, utiliza-se a matéria prima "Ferro" e "Dobradica". Para tal fim, utiliza-se somente uma unidade de cada uma.
     function produzPortaRetratil() public {
           // Aqui é resgatado a cadeiaAtual do ferro para, depois ser adicionado à cadeia do produto novo, a porta retratil;
-          address[] memory cadeiaAtual1 =  estoqueDeFerro[estoqueDeFerro.length-1].getCadeia();
+          Empresa[] memory cadeiaAtual1 =  estoqueDeFerro[estoqueDeFerro.length-1].getCadeia();
           // Aqui é resgatado a cadeiaAtual da dobradica para, depois ser adicionado à cadeia do produto novo, a porta retratil;
-          address[] memory cadeiaAtual2 =  estoqueDeDobradica[estoqueDeDobradica.length-1].getCadeia();
+          Empresa[] memory cadeiaAtual2 =  estoqueDeDobradica[estoqueDeDobradica.length-1].getCadeia();
           // Tratamento do array do estoque de consumo para produção
-          delete estoqueDeFerro[estoqueDeFerro.length-1];
+          //delete estoqueDeFerro[estoqueDeFerro.length-1];
           estoqueDeFerro.length--;
           // Tratamento do array do estoque de consumo para produção
-          delete estoqueDeDobradica[estoqueDeDobradica.length-1];
+          //delete estoqueDeDobradica[estoqueDeDobradica.length-1];
           estoqueDeDobradica.length--;
-          Produto novoProduto = new Produto("Porta retratil", "insumo", endereco);
+          Produto novoProduto = new Produto("Porta retratil", "insumo", this);
           //Agora, depois da confirmação da criação do novo produto, é onde adicionamos o valor anterior das cadeia para ao produto novo( a porta retrátil);
           novoProduto.setCadeia(cadeiaAtual1);
           novoProduto.setCadeia(cadeiaAtual2);
@@ -199,10 +200,10 @@ contract Transportadora is Empresa{
      }
     // Entrega para o destino 
     function entrega(Pacote pacoteParaEntrega) public{
-        address enderecoDestino = pacoteParaEntrega.getEnderecoDestino();
+        Empresa enderecoDestino = pacoteParaEntrega.getEnderecoDestino();
         // Define o transportador como proprietario atual do produto
-        pacoteParaEntrega.getProduto().setProprietario(endereco);
-        Estoque(enderecoDestino).recebe(pacoteParaEntrega.getProduto());
+        pacoteParaEntrega.getProduto().setProprietario(this);
+        Empresa(enderecoDestino).recebe(pacoteParaEntrega.getProduto());
     }
 }
  
@@ -213,15 +214,15 @@ contract Produto {
     // O tipoDoProduto é para o manufaturador identificar aonde alocar o produto, por enquanto só é relevante se ele é matéria prima ou não.
     string tipoProduto;
     // O proprietario atual do produto;
-    address proprietario;
+    Empresa proprietario;
     // O produtor se refere a quem produziu ele;
-    address produtor;
+    Empresa produtor;
     // Array de tadas as empresas que tocaram no produto
-    address[] cadeia;
+    Empresa[] cadeia;
    
    // Construtor se restringe a definir o nome do produto, o seu tipo, quem é o seu produtor. Se torna implícito que, durante a criação, o proprietario
    // seja o proprio produtor.
-   constructor(string _nome, string _tipoProduto, address _produtorOrigem) public{
+   constructor(string _nome, string _tipoProduto, Empresa _produtorOrigem) public{
        
         nome = _nome;
         tipoProduto = _tipoProduto;
@@ -231,7 +232,7 @@ contract Produto {
     
     
     // Essa funcao deve ser chamada toda vez que o produto mudar de proprietario, seja no momento da produção, durante transporte ou no recebimento
-    function setProprietario(address _novoProprietario) public{
+    function setProprietario(Empresa _novoProprietario) public{
         proprietario = _novoProprietario;
         cadeia.push(proprietario);
     }
@@ -242,14 +243,24 @@ contract Produto {
     }
     
     // Retorna a cadeia inteira atual
-    function getCadeia() public constant returns(address[]){
+    function getCadeia() public constant returns(Empresa[]){
         return cadeia;
     }
-   
+    
+    
+    // Essa funcao nunca foi realmente validada por sempre acusar "falta de combustível". Não sei se ela realmente funciona ou não.
+    function getNome() public constant returns(string[]){
+        string[] nomesDaCadeia;
+        for( uint i = 0; i<cadeia.length-1;i++){
+            nomesDaCadeia[0] = cadeia[0].getNome();
+        }
+        return nomesDaCadeia;
+    }
+    
    // Adiciona no final do array da cadeia os valores extras de membros da cadeia. Isso deve ser chamado toda vez que o produto for utilizado para criar
    // um novo produto. Lembrando que é impossível remover os membros da cadeia depois de terem sido adicionados. O problem atual dessa implementação
    // é o de não conseguir armazenar de forma cronológica as empresas e uma duplicação do código de rastreamento ao utilizar um produto como matéria prima.
-    function setCadeia(address[] cadeiaAtual) public returns(address[]){
+    function setCadeia(Empresa[] cadeiaAtual) public{
         for( uint i = 0; i<cadeiaAtual.length-1;i++){
             cadeia.push(cadeiaAtual[i]);
         }
